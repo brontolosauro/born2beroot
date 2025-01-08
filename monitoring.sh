@@ -46,7 +46,7 @@ END {
 }' /proc/meminfo >> message.txt
 
 #disk usage
-echo -n "#Disk Usage: " >> message.txt
+echo "#Disk Usage: " >> message.txt
 df | awk '/root/ {
 	size += $2
 	used += $3
@@ -71,5 +71,60 @@ df | awk '/home/ {
 }
 END {
 	rate = used / size * 100
-	printf "\t\t/home\t %.2f/%.2f GB (%.3f %%)\n", free, size, rate
+	printf "\t/home\t %.2f/%.2f GB (%.3f %%)\n", free, size, rate
 }' >> message.txt
+
+#CPU load
+echo -n "#CPU load: " >> message.txt
+
+awk '/cpu / {
+	for (i = 1; i <= 11; i++)
+		tot_t += $i
+	idle_t = $5
+	load_t = tot_t - idle_t
+	load_rate = load_t / tot_t * 100
+}
+END {
+	printf "%.2f %%\n", load_rate
+}' /proc/stat >> message.txt
+
+#last boot
+echo -n "#Last boot: " >> message.txt
+who -b |awk '{print $4 " " $5}' >> message.txt
+
+#LVM
+echo -n "#LVM in use: " >> message.txt
+if [[(($(lsblk | grep "lvm" | wc -l) -gt 0))]];
+	then
+		echo yes >> message.txt;
+	else
+		echo no >> message.txt;
+fi
+
+#active connections
+echo -n "#TCP Connections: " >> message.txt
+ss -at | grep "ESTAB" | wc -l >> message.txt
+
+#number of users loged in
+echo -n "#Logged On Users: " >> message.txt
+who | wc -l >> message.txt
+
+#IPv4 & MAC address
+echo "#IPv4 Address: " >> message.txt
+ip addr | awk '/link\/ether|enp/ {
+	if ($1 == "link/ether")
+		mac = $2
+	if ($1 == "inet")
+	{
+		ip = $2
+		printf "\t%s (%s)\n", ip, mac
+	}
+}' >> message.txt
+
+#sudo 
+echo -n "#Commands Executed Via sudo: " >> message.txt
+journalctl -q _COMM=sudo | grep COMMAND | wc -l >> message.txt
+
+#wall
+wall message.txt
+rm message.txt
